@@ -70,36 +70,32 @@ EOF
   echo "NAME:$NAME"
   set -x
 
-  apk add --virtual vim-build curl gcc libc-dev make
+  dnf install -y python2-pip
+
+  TRANS_ID=$(dnf history list | grep -E '^ +[0-9]+' | head -n 1 | awk -F" " '{print $1}')
+
+  echo "DNF Transaction: ${TRANS_ID}"
 
   if [ -n "$PYTHON2" ]; then
-    apk add --virtual vim-build python-dev
     if [ "$FLAVOR" = vim ]; then
       CONFIG_ARGS="$CONFIG_ARGS --enable-pythoninterp=dynamic"
     else
-      apk add --virtual vim-build py2-pip
-      apk add python
       pip2 install neovim
     fi
   fi
 
   if [ -n "$PYTHON3" ]; then
-    apk add --virtual vim-build python3-dev
     if [ "$FLAVOR" = vim ]; then
       CONFIG_ARGS="$CONFIG_ARGS --enable-python3interp=dynamic"
     else
-      apk add python3
       pip3 install neovim
     fi
   fi
 
   if [ $RUBY -eq 1 ]; then
-    apk add --virtual vim-build ruby-dev
-    apk add ruby
     if [ "$FLAVOR" = vim ]; then
       CONFIG_ARGS="$CONFIG_ARGS --enable-rubyinterp"
     else
-      apk add --virtual vim-build ruby-rdoc ruby-irb
       gem install neovim
     fi
   fi
@@ -107,8 +103,6 @@ EOF
   if [ $LUA -eq 1 ]; then
     if [ "$FLAVOR" = vim ]; then
       CONFIG_ARGS="$CONFIG_ARGS --enable-luainterp"
-      apk add --virtual vim-build lua-dev
-      apk add lua
     else
       echo 'NOTE: -lua is automatically used with Neovim 0.2.1+, and not supported before.'
     fi
@@ -136,42 +130,41 @@ EOF
     cd "$BUILD_DIR"
   fi
 
+  dnf groupinstall -y "Development Tools" "Development Libraries"
+
+# https://src.fedoraproject.org/rpms/vim/raw/f28/f/vim.spec
+
+  dnf install -y \
+      hunspell-devel \
+      gcc gcc-c++ gettext ncurses-devel \
+      perl-generators \
+      libacl-devel gpm-devel autoconf file \
+      libselinux-devel \
+      ruby-devel ruby \
+      lua-devel \
+      glibc-devel \
+      make \
+      desktop-file-utils \
+
   if [ "$FLAVOR" = vim ]; then
-    apk add --virtual vim-build ncurses-dev
-    apk add ncurses
+    echo ?
   elif [ "$FLAVOR" = neovim ]; then
     # Some of them will be installed already, but it is a good reference for
     # what is required.
     # luajit is required with Neomvim 0.2.1+ (previously only during build).
-    apk add gettext \
-      libuv \
-      libtermkey \
-      libvterm \
-      luajit \
-      msgpack-c \
-      unibilium
-    apk add --virtual vim-build \
-      autoconf \
-      automake \
-      ca-certificates \
-      cmake \
-      g++ \
-      gettext-dev \
-      gperf \
-      libtool \
-      libuv-dev \
-      libtermkey-dev \
-      libvterm-dev \
-      lua5.1-lpeg \
-      lua5.1-mpack \
-      luajit-dev \
-      m4 \
-      make \
-      msgpack-c-dev \
-      perl \
-      unzip \
-      unibilium-dev \
-      xz
+    dnf install -y \
+	  cmake fdupes \
+	  gperf \
+	  lua-devel \
+	  lua-lpeg \
+	  lua-mpack \
+	  jemalloc-devel \
+	  msgpack-devel \
+	  libtermkey-devel \
+	  libuv-devel \
+	  libvterm-devel \
+	  unibilium-devel \
+	  jemalloc
   else
     bail "Unexpected FLAVOR: $FLAVOR (use vim or neovim)."
   fi
@@ -199,13 +192,17 @@ build() {
     make install || bail "Install failed"
 
   elif [ "$FLAVOR" = neovim ]; then
-    make CMAKE_BUILD_TYPE=RelWithDebInfo \
-      CMAKE_EXTRA_FLAGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
-        -DENABLE_JEMALLOC=OFF" \
-      DEPS_CMAKE_FLAGS="-DUSE_BUNDLED=OFF" \
-        || bail "Make failed"
+    sed -i 's/mpack bit)/mpack bit32)/g' CMakeLists.txt 
+    sed -i "s/require 'bit'/require 'bit32'/" src/nvim/ex_cmds.lua
+    mkdir build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+      -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
+      -DENABLE_JEMALLOC=OFF \
+      -DPREFER_LUA=ON -DLUA_PRG=/usr/bin/lua \
+         .. || bail "Make failed"
 
-    versiondef_file=build/config/auto/versiondef.h
+    versiondef_file=config/auto/versiondef.h
     if grep -qF '#define NVIM_VERSION_PRERELEASE "-dev"' $versiondef_file \
         && grep -qF '/* #undef NVIM_VERSION_MEDIUM */' $versiondef_file ; then
 
@@ -218,6 +215,7 @@ build() {
       fi
     fi
     make install || bail "Install failed"
+    cd ..
   fi
 
   # Clean, but don't delete the source in case you want make a different build
@@ -236,8 +234,6 @@ build() {
   ln -sfn "$VIM_BIN" "$link_target"
   "$link_target" --version
 }
-
-apk update
 
 init_vars
 clean=
@@ -310,7 +306,8 @@ if [ "$clean" = 0 ]; then
   echo "NOTE: skipping cleanup."
 else
   echo "Pruning packages and dirs.."
-  apk info -q vim-build > /dev/null && apk del vim-build
   rm -rf /vim/*
-  rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /root/.cache
+  #
+  # Doesn't work because of missing packages :(
+  # dnf history rollback ${TRANS_ID}
 fi
