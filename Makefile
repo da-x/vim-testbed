@@ -3,14 +3,14 @@
 TAG:=10
 
 build:
-	docker build -t testbed/vim:$(TAG) .
+	docker build -t alonid/vim-testbed:$(TAG) .
 
 push:
-	docker push testbed/vim:$(TAG)
+	docker push alonid/vim-testbed:$(TAG)
 
 update_latest:
-	docker tag testbed/vim:$(TAG) testbed/vim:latest
-	docker push testbed/vim:latest
+	docker tag alonid/vim-testbed:$(TAG) alonid/vim-testbed:latest
+	docker push alonid/vim-testbed:latest
 
 # test: build the base image and example image on top, running tests therein.
 DOCKER_BASE_IMAGE:=vim-testbed-base
