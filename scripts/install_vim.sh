@@ -313,10 +313,4 @@ else
   apk info -q vim-build > /dev/null && apk del vim-build
   rm -rf /vim/*
   rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /root/.cache
-  find / \( -name '*.pyc' -o -name '*.pyo' \) -delete
-
-  # Luarocks used for Neovim.
-  rm -f /usr/local/bin/luarocks*
-  rm -rf /usr/local/share/lua/5*/luarocks
-  rm -rf /usr/local/etc/luarocks*
 fi
