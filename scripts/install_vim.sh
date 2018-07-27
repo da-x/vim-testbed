@@ -60,7 +60,7 @@ EOF
   INSTALL_PREFIX="/vim-build/$VIM_NAME"
 
   if [ "$FLAVOR" = vim ]; then
-    CONFIG_ARGS="--prefix=$INSTALL_PREFIX --enable-multibyte --without-x --enable-gui=no --with-compiledby=vim-testbed"
+    CONFIG_ARGS="--prefix=$INSTALL_PREFIX --enable-multibyte --without-x --enable-gui=no --with-compiledby=vim-testbed --enable-pythoninterp=dynamic"
   fi
   set +x
   echo "TAG:$TAG"
